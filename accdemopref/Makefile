@@ -1,8 +1,8 @@
 ifdef SIMULATOR
-	TARGET = simulator:clang:latest:8.0
+	TARGET = simulator:clang:latest:14.0
 else
-	TARGET = iphone:clang:latest:7.0
-	ARCHS= armv7 arm64 arm64e
+	TARGET = iphone:clang:latest:14.0
+	ARCHS= arm64 arm64e
 endif
 
 BUNDLE_NAME = accDemo
@@ -14,7 +14,7 @@ accDemo_PRIVATE_FRAMEWORKS = Preferences
 accDemo_CFLAGS = -fobjc-arc
 accDemo_EXTRA_FRAMEWORKS += AltList
 
-ADDITIONAL_CFLAGS += -Wno-error=unused-variable -Wno-error=unused-function -include Prefix.pch
+ADDITIONAL_CFLAGS += -Wno-error=unused-variable -Wno-error=unused-function -Wno-error=deprecated-declarations -include Prefix.pch
 
 include $(THEOS)/makefiles/common.mk
 include $(THEOS_MAKE_PATH)/bundle.mk

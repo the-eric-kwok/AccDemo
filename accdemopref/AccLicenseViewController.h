@@ -1,3 +1,3 @@
-@interface AccLicenseViewController :UIViewController
+@interface AccLicenseViewController : UIViewController
 
 @end

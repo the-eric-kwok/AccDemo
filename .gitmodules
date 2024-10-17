@@ -4,3 +4,6 @@
 [submodule "WQSuspendView"]
 	path = WQSuspendView
 	url = https://github.com/liwq87112/WQSuspendView.git
+[submodule "AltList"]
+	path = AltList
+	url = https://github.com/the-eric-kwok/AltList.git

@@ -1,16 +1,20 @@
 ifdef SIMULATOR
-	TARGET = simulator:clang:latest:8.0
+	TARGET = simulator:clang:latest:14.0
 else
-	TARGET = iphone:clang:latest:7.0
+	ARCHS = arm64 arm64e
+
 	ifeq ($(THEOS_PACKAGE_SCHEME), rootless)
-		ARCHS = arm64 arm64e
+		TARGET = iphone:clang:latest:15.0
 	else
-		ARCHS = armv7 arm64
+		TARGET = iphone:clang:latest:14.0
 	endif
+
+	THEOS_DEVICE_IP = localhost
+	THEOS_DEVICE_PORT = 2222
 endif
- 
-INSTALL_TARGET_PROCESSES = fatego ProductName GameDemo-mobile 
-# INSTALL_TARGET_PROCESSES += SpringBoard
+
+INSTALL_TARGET_PROCESSES = fatego GameDemo-mobile RealRacing3
+INSTALL_TARGET_PROCESSES += SpringBoard
 
 TWEAK_NAME = AccDemo AccDemoLoader
 
@@ -25,15 +29,13 @@ AccDemo_CFLAGS += -I./WHToast
 
 AccDemo_LIBRARIES = substrate
 AccDemo_LOGOSFLAGS = -c generator=MobileSubstrate
-
+AccDemo_PRIVATE_FRAMEWORKS = Preferences AltList
 
 
 AccDemoLoader_FILES = TweakLoader.x
 AccDemoLoader_CFLAGS = -fobjc-arc
 
-
-
-ADDITIONAL_CFLAGS += -Wno-error=unused-variable -Wno-error=unused-function -include Prefix.pch
+ADDITIONAL_CFLAGS += -Wno-error=unused-variable -Wno-error=unused-function -Wno-error=undef-prefix -Wno-error=deprecated-declarations -include Prefix.pch
 
 SUBPROJECTS += accdemopref
 SUBPROJECTS += ccaccdemo
