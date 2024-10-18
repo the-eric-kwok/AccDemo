@@ -33,12 +33,15 @@ typedef enum {
 static inline uint64_t get_page_address_64(uint64_t addr, uint32_t pagesize) {
     return addr & ~0xfff;
 }
+
 static inline bool is_adrp(int32_t ins) {
     return (((ins >> 24) & 0b11111) == 0b10000) && (ins >> 31);
 }
+
 static inline bool is_64add(int32_t ins) {
     return ((ins >> 23) & 0b111111111) == 0b100100010;
 }
+
 static inline uint64_t get_adrp_address(uint32_t ins, long pc) {
     uint32_t instr, immlo, immhi;
     int32_t value;
@@ -48,16 +51,21 @@ static inline uint64_t get_adrp_address(uint32_t ins, long pc) {
     immlo = (0x60000000 & instr) >> 29;
     immhi = (0xffffe0 & instr) >> 3;
     value = (immlo | immhi) | (1 << 31);
-    if ((value >> 20) & 1)
+
+    if ((value >> 20) & 1) {
         value |= 0xffe00000;
-    else
+    } else {
         value &= ~0xffe00000;
-    if (is_adrp) value <<= 12;
+    }
+
+    if (is_adrp) { value <<= 12; }
+
     // sign extend value to 64 bits
-    if (is_adrp)
+    if (is_adrp) {
         return get_page_address_64(pc, PAGE_SIZE) + (int64_t)value;
-    else
+    } else {
         return pc + (int64_t)value;
+    }
 }
 // static inline uint64_t get_b_address(uint32_t ins,long pc){
 //     int32_t imm26=ins&(0x3ffffff);
@@ -78,6 +86,7 @@ static inline uint64_t get_add_value(uint32_t ins) {
     if (instr2 & 0xc00000) {
         imm12 <<= 12;
     }
+
     return imm12;
 }
 // static inline uint64_t get_str_imm12(uint32_t ins){
@@ -94,15 +103,18 @@ static kern_return_t get_region_address_and_size(mach_vm_offset_t *address_p,
         mach_task_self(), address_p, size_p, VM_REGION_BASIC_INFO,
         (vm_region_info_t)&info, &count, &object_name);
     vm_prot_t protection = info.protection;
+
     if (!protection) {
         *address_p += *size_p;
         return get_region_address_and_size(address_p, size_p);
     }
+
     pointer_t buffer;
     mach_msg_type_number_t bufferSize = *size_p;
-    if ((ret = mach_vm_read(mach_task_self(), *address_p, *size_p, &buffer,
-                            &bufferSize)) != KERN_SUCCESS)
+    if ((ret = mach_vm_read(mach_task_self(), *address_p, *size_p, &buffer, &bufferSize)) != KERN_SUCCESS) {
         return ret;
+    }
+
     return ret;
 }
 
@@ -129,9 +141,9 @@ static suseconds_t true_pre_usec;
 #define NSec_Scale (1000000000LL)
 
 #pragma mark gettimeofday
-% group gettimeofday %
-    hookf(int, gettimeofday, struct timeval *tv, struct timezone *tz) {
-    int ret = % orig(tv, tz);
+%group gettimeofday
+%hookf(int, gettimeofday, struct timeval *tv, struct timezone *tz) {
+    int ret = %orig(tv, tz);
     if (!ret) {
         if (!pre_sec) {
             pre_sec = tv->tv_sec;
@@ -160,19 +172,18 @@ static suseconds_t true_pre_usec;
     }
     return ret;
 }
-% end  // gettimeofday
+%end  // gettimeofday
 
-    static void
-    hook_gettimeofday() {
+static void hook_gettimeofday() {
     void *libSystem = dlopen("/usr/lib/libSystem.dylib", RTLD_NOLOAD);
     void *gettimeofday = dlsym(libSystem, "gettimeofday");
-    % init(gettimeofday, gettimeofday = gettimeofday);
+    %init(gettimeofday, gettimeofday = gettimeofday);
 }
 
 #pragma mark clock_gettime
-% group clock_gettime %
-    hookf(int, clock_gettime, clockid_t clk_id, struct timespec *tp) {
-    int ret = % orig(clk_id, tp);
+%group clock_gettime
+%hookf(int, clock_gettime, clockid_t clk_id, struct timespec *tp) {
+    int ret = %orig(clk_id, tp);
     if (!ret) {
         if (!pre_sec) {
             pre_sec = tp->tv_sec;
@@ -201,31 +212,30 @@ static suseconds_t true_pre_usec;
     }
     return ret;
 }
-% end  // clock_gettime
+%end  // clock_gettime
 
-    static void
-    hook_clock_gettime() {
+static void hook_clock_gettime() {
     void *libSystem = dlopen("/usr/lib/libSystem.dylib", RTLD_NOLOAD);
     void *clock_gettime = dlsym(libSystem, "clock_gettime");
-    % init(clock_gettime, clock_gettime = clock_gettime);
+    %init(clock_gettime, clock_gettime = clock_gettime);
 }
 
 #pragma mark unity
 
 typedef void (*orig_t)(float);
 
-% group unity % hookf(void, set_timeScale, float arg1) {
+%group unity
+%hookf(void, set_timeScale, float arg1) {
     NSLog(@"orig_scale: %f", arg1);
 
     arg1 = rates[rate_i];
-    % orig(arg1);
+    %orig(arg1);
 
     NSLog(@"used scale:%f", arg1);
 }
-% end  // unity
+%end  // unity
 
-    static long
-    find_ad_set_timeScale(long ad_ref) {
+static long find_ad_set_timeScale(long ad_ref) {
     ad_ref += 8;
     NSLog(@"ad_ref: 0x%lx", ad_ref - aslr);
 
@@ -243,8 +253,8 @@ static long find_ref_to_str(long ad_str) {
         if (ad_str < address) {
             return false;
         }
-        // NSLog(@"ref: 0x%lx
-        // 0x%lx",(long)address-aslr,(long)address+(long)size-aslr);
+
+        // NSLog(@"ref: 0x%lx 0x%lx", (long)address-aslr, (long)address+(long)size-aslr);
         for (long ad = address; ad + 4 < address + size; ad += 4) {
             int32_t ins = *(int32_t *)ad;
             int32_t ins2 = *(int32_t *)(ad + 4);
@@ -259,6 +269,7 @@ static long find_ref_to_str(long ad_str) {
 
     return false;
 }
+
 static long find_ad_ref() {
     mach_vm_offset_t address = 0;
     mach_vm_size_t size = 0;
@@ -282,67 +293,69 @@ static long find_ad_ref() {
 }
 
 static void hook_time_scale() {
-// #ifdef TARGET_OS_SIMULATOR
-#if TARGET_OS_SIMULATOR
-    return;
-#endif
+    // #ifdef TARGET_OS_SIMULATOR
+    #if TARGET_OS_SIMULATOR
+        return;
+    #endif
     // #endif
     long ad_ref = find_ad_ref();
 
     long ad_set_timeScale = find_ad_set_timeScale(ad_ref);
 
     NSLog(@"hook set_timeScale start");
-    % init(unity, set_timeScale = (void *)ad_set_timeScale)
-            NSLog(@"hook set_timeScale success");
+    %init(unity, set_timeScale = (void *)ad_set_timeScale);
+    NSLog(@"hook set_timeScale success");
 }
 
 #pragma mark ui
-% group ui % hook NSBundle + (NSBundle *)bundleForClass : (Class)aClass {
-    if (aClass == [% c(WHToastView) class]) {
+%group ui
+%hook NSBundle
++ (NSBundle *)bundleForClass:(Class)aClass {
+    if (aClass == [%c(WHToastView) class]) {
         return [NSBundle bundleWithPath:kBundlePath];
     }
-    return % orig;
-}
-% end  // NSBundle
 
-        % hook WQSuspendView -
-    (instancetype)initWithFrame : (CGRect)frame showType
-    : (WQSuspendViewType)type tapBlock : (void (^)(void))tapBlock {
-    id ret = % orig;
+    return %orig;
+}
+%end  // NSBundle
+
+%hook WQSuspendView
+- (instancetype)initWithFrame:(CGRect)frame showType:(WQSuspendViewType)type tapBlock:(void (^)(void))tapBlock {
+    id ret = %orig;
     button = ret;
     return ret;
 }
-% end  // WQSuspendView
+%end  // WQSuspendView
 
-        % hook UIWindow -
-    (void)bringSubviewToFront : (UIView *)view {
-    % orig;
+%hook UIWindow
+- (void)bringSubviewToFront:(UIView *)view {
+    %orig;
     if (button && view != button) {
         [self bringSubviewToFront:button];
     }
 }
+
 - (void)addSubview:(UIView *)view {
-    % orig;
+    %orig;
     if (button && view != button) {
         [self bringSubviewToFront:button];
     }
 }
-% end  // UIWindow
+%end  // UIWindow
 
-        % end  // ui
+%end  // ui
 
-        % group UIAppDelegate_window % hook UIAppDelegateClass % new -
-    (id)window {
-    return nil;
-}
-% end      // UIAppDelegateClass
-    % end  // UIAppDelegate_window
+%group UIAppDelegate_window
+%hook UIAppDelegateClass
+%new
+- (id)window { return nil; }
+%end  // UIAppDelegateClass
+%end  // UIAppDelegate_window
 
-    static void
-    initHook() {
+static void initHook() {
     switch (mode) {
         case kModeAuto:
-            if (% c(UnityAppController)) {
+            if (%c(UnityAppController)) {
                 hook_time_scale();
             } else {
                 hook_gettimeofday();
@@ -361,24 +374,21 @@ static void hook_time_scale() {
 
 static void initButton() {
     [WHToast setShowMask:NO];
-    [WQSuspendView
-        showWithType:WQSuspendViewTypeNone
-            tapBlock:^{
-              rate_i = (rate_i + 1) % rate_count;
-              NSLog(@"Now rates:%f", rates[rate_i]);
-              if (_logos_orig$unity$set_timeScale) {
-                  ((orig_t)_logos_orig$unity$set_timeScale)(rates[rate_i]);
-              }
-              if (toast) {
-                  [WHToast
-                      showSuccessWithMessage:[NSString
-                                                 stringWithFormat:@"%f",
-                                                                  rates[rate_i]]
+    [WQSuspendView showWithType:WQSuspendViewTypeNone tapBlock:^{
+        rate_i = (rate_i + 1) % rate_count;
+        NSLog(@"Now rates:%f", rates[rate_i]);
+
+        if (_logos_orig$unity$set_timeScale) {
+            ((orig_t)_logos_orig$unity$set_timeScale)(rates[rate_i]);
+        }
+
+        if (toast) {
+            [WHToast showSuccessWithMessage:[NSString stringWithFormat:@"%f", rates[rate_i]]
                                     duration:0.5
-                               finishHandler:^{
-                               }];
-              }
-            }];
+                                finishHandler:^{}];
+        }
+    }];
+
     button.frame = CGRectMake(0, 200, 40, 40);
     button.backgroundColor = [UIColor blackColor];
     button.layer.cornerRadius = 20;
@@ -392,22 +402,23 @@ static void initButton() {
     label.font = [UIFont systemFontOfSize:11];
     [button addSubview:label];
 
-    if (!button.superview &&
-        [[UIApp delegate] respondsToSelector:@selector(window)]) {
+    if (!button.superview && [[UIApp delegate] respondsToSelector:@selector(window)]) {
         [[[UIApp delegate] window] addSubview:button];
         [[[UIApp delegate] window] bringSubviewToFront:button];
     }
 
-    if (!buttonEnabled) [button setHidden:YES];
+    if (!buttonEnabled) {
+        [button setHidden:YES];
+    }
 }
 
 static void loadFrameWork() {
     aslr = _dyld_get_image_vmaddr_slide(0);
-    NSString *bundlePath =
-        [NSString stringWithFormat:@"%@/Frameworks/UnityFramework.framework",
-                                   [[NSBundle mainBundle] bundlePath]];
+    NSString *bundlePath = [NSString stringWithFormat:@"%@/Frameworks/UnityFramework.framework",
+                            [[NSBundle mainBundle] bundlePath]];
     NSBundle *bundle = [NSBundle bundleWithPath:bundlePath];
     [bundle load];
+
     if ([bundle isLoaded]) {
         for (int i = 0; i < _dyld_image_count(); i++) {
             const char *image_name = _dyld_get_image_name(i);
@@ -416,25 +427,28 @@ static void loadFrameWork() {
             }
         }
     }
+
     NSLog(@"aslr: 0x%lx", (long)aslr);
 }
 
 static BOOL isEnabledApp() {
     NSString *bundleIdentifier = [[NSBundle mainBundle] bundleIdentifier];
-    NSMutableDictionary *prefs =
-        [[NSMutableDictionary alloc] initWithContentsOfFile:kPrefPath];
+    NSMutableDictionary *prefs = [[NSMutableDictionary alloc] initWithContentsOfFile:kPrefPath];
     enabled = prefs[@"enabled"] ? [prefs[@"enabled"] boolValue] : YES;
-    if (!enabled) return NO;
+
+    if (!enabled) {
+        return NO;
+    }
 
     return [prefs[@"apps"] containsObject:bundleIdentifier];
 }
+
 static void loadPref() {
     NSLog(@"loadPref...");
-    NSMutableDictionary *prefs =
-        [[NSMutableDictionary alloc] initWithContentsOfFile:kPrefPath];
+
+    NSMutableDictionary *prefs = [[NSMutableDictionary alloc] initWithContentsOfFile:kPrefPath];
     toast = prefs[@"toast"] ? [prefs[@"toast"] boolValue] : YES;
-    buttonEnabled =
-        prefs[@"buttonEnabled"] ? [prefs[@"buttonEnabled"] boolValue] : YES;
+    buttonEnabled = prefs[@"buttonEnabled"] ? [prefs[@"buttonEnabled"] boolValue] : YES;
     mode = prefs[@"mode"] ? [prefs[@"mode"] intValue] : 0;
 
     NSLog(@"2. app: %@", [[NSBundle mainBundle] bundleIdentifier]);
@@ -459,34 +473,41 @@ static void loadPref() {
         i++;
     }
 
-    if (button) [button setHidden:!buttonEnabled];
+    if (button) {
+        [button setHidden:!buttonEnabled];
+    }
 }
+
 static void UIApplicationDidFinishLaunching(CFNotificationCenterRef center,
                                             void *observer, CFStringRef name,
                                             const void *object,
                                             CFDictionaryRef userInfo) {
+
     if (![[UIApp delegate] respondsToSelector:@selector(window)]) {
-        % init(UIAppDelegate_window,
-               UIAppDelegateClass = [[UIApp delegate] class]);
+        %init(UIAppDelegate_window, UIAppDelegateClass = [[UIApp delegate] class]);
     }
+
     initButton();
     initHook();
 }
 
 #pragma mark ctor
-% ctor {
+%ctor {
     if (!isEnabledApp()) return;
     NSLog(@"-----------------");
-    % init(ui);
+    %init(ui);
 
     loadPref();
     loadFrameWork();
 
     int token = 0;
-    notify_register_dispatch("com.brend0n.accdemo/loadPref", &token,
-                             dispatch_get_main_queue(), ^(int token) {
-                               loadPref();
+    notify_register_dispatch("com.brend0n.accdemo/loadPref",
+                             &token,
+                             dispatch_get_main_queue(),
+                             ^(int token) {
+                                 loadPref();
                              });
+
     CFNotificationCenterAddObserver(
         CFNotificationCenterGetLocalCenter(), NULL,
         UIApplicationDidFinishLaunching,

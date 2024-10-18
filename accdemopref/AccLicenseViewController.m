@@ -1,6 +1,7 @@
 #import "AccLicenseViewController.h"
 
 @implementation AccLicenseViewController
+
 - (void)loadView {
     [super loadView];
     self.navigationItem.title = @"Licenses";

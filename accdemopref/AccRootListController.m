@@ -3,6 +3,9 @@
 #import "AccLicenseViewController.h"
 #import "BDInfoListController.h"
 
+static const CGFloat kMinSpeed = 0.f;
+static const CGFloat kMaxSpeed = 1000.f;
+
 @implementation AccRootListController
 
 - (NSArray *)specifiers {
@@ -59,6 +62,7 @@
 
     return _specifiers;
 }
+
 // add
 - (void)addSpeed {
     NSData *data = [NSData dataWithContentsOfFile:kPrefPath];
@@ -101,13 +105,15 @@
     NSInteger index = [self indexPathForSpecifier:[self specifierForID:@"SPEED_GROUP"]].section;
     [self insertSpecifier:spec atEndOfGroup:index animated:YES];
 }
+
 - (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
     PSSpecifier *spec = [self specifierAtIndexPath:indexPath];
     if ([spec.properties[@"key"] hasPrefix:@"speed-"]) return YES;
     return NO;
 }
+
 // del
-- (void)     tableView:(UITableView *)tableView
+- (void)tableView:(UITableView *)tableView
     commitEditingStyle:(UITableViewCellEditingStyle)editingStyle
      forRowAtIndexPath:(NSIndexPath *)indexPath {
     NSLog(@"indexPath: %@", indexPath);
@@ -131,8 +137,7 @@
 }
 
 - (id)readPreferenceValue:(PSSpecifier *)specifier {
-    NSString *path = [NSString stringWithFormat:@THEOS_PACKAGE_INSTALL_PREFIX
-                      "/var/mobile/Library/Preferences/%@.plist",
+    NSString *path = [NSString stringWithFormat:@THEOS_PACKAGE_INSTALL_PREFIX"/var/mobile/Library/Preferences/%@.plist",
                       specifier.properties[@"defaults"]];
     NSMutableDictionary *settings = [NSMutableDictionary dictionary];
     [settings addEntriesFromDictionary:[NSDictionary dictionaryWithContentsOfFile:path]];
@@ -140,17 +145,19 @@
 }
 
 - (void)setPreferenceValue:(id)value specifier:(PSSpecifier *)specifier {
-    NSString *path = [NSString stringWithFormat:@THEOS_PACKAGE_INSTALL_PREFIX
-                      "/var/mobile/Library/Preferences/%@.plist",
+    NSString *path = [NSString stringWithFormat:@THEOS_PACKAGE_INSTALL_PREFIX"/var/mobile/Library/Preferences/%@.plist",
                       specifier.properties[@"defaults"]];
     NSMutableDictionary *settings = [NSMutableDictionary dictionary];
     [settings addEntriesFromDictionary:[NSDictionary dictionaryWithContentsOfFile:path]];
 
     id origValue = value;
-    if ([specifier.properties[@"key"] hasPrefix:@"speed-"] && [value floatValue] < 0.f)
-        value = @0.f;
-    if ([specifier.properties[@"key"] hasPrefix:@"speed-"] && [value floatValue] > 1000.f)
-        value = @1000.f;
+    if ([specifier.properties[@"key"] hasPrefix:@"speed-"] && [value floatValue] < kMinSpeed) {
+        value = @(kMinSpeed);
+    }
+
+    if ([specifier.properties[@"key"] hasPrefix:@"speed-"] && [value floatValue] > kMaxSpeed) {
+        value = @(kMaxSpeed);
+    }
 
     [settings setObject:value forKey:specifier.properties[@"key"]];
     [settings writeToFile:path atomically:YES];
@@ -163,6 +170,7 @@
                                              notificationName, NULL, NULL, YES);
     }
 }
+
 - (void)showInfo {
     UIBarButtonItem *backItem = [[UIBarButtonItem alloc] initWithTitle:@""
                                                                  style:UIBarButtonItemStylePlain
@@ -170,8 +178,9 @@
                                                                 action:nil];
     self.navigationItem.backBarButtonItem = backItem;
     [self.navigationController pushViewController:[[BDInfoListController alloc] init]
-                                         animated:TRUE];
+                                         animated:YES];
 }
+
 - (void)showLicenses {
     UIBarButtonItem *backItem = [[UIBarButtonItem alloc] initWithTitle:@""
                                                                  style:UIBarButtonItemStylePlain
@@ -179,7 +188,7 @@
                                                                 action:nil];
     self.navigationItem.backBarButtonItem = backItem;
     [self.navigationController pushViewController:[[AccLicenseViewController alloc] init]
-                                         animated:TRUE];
+                                         animated:YES];
 }
 
 @end
